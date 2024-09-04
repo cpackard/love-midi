@@ -3,7 +3,8 @@ local midi = require "midi"
 -- It is possible to read only a single track.
 -- This will efficiently skip tracks using stream:seek().
 
-local file = assert(io.open("resources/short-tune.mid", "rb"))
+local file = love.filesystem.newFile("short-tune.mid")
+file:open("r")
 
 -- First we need to find out how many tracks there are in total.
 -- The callback is always optional and defaults to an empty function.
@@ -12,7 +13,7 @@ print("Found " .. tracks .. " midi tracks!")
 
 -- Now that we know the track count, let's load just the last one.
 -- The file already has been read partially, so we need to seek back or reopen the file altogether.
-assert(file:seek("set"))
+assert(file:seek(0))
 midi.processTrack(file, print, tracks)
 
 file:close()

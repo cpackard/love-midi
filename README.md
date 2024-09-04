@@ -1,17 +1,20 @@
-# lua-midi
+# love-midi
 
 A pure Lua implementation to read midi files using a callback function.
 
-## Usage
+This library is only a slight modification to [lua-midi](https://github.com/Possseidon/lua-midi) to allow the library to work in a Love game.
 
-The library allows not only reading all tracks in a midi file at once, but also reading only the header (e.g. to a find out the track count) and then reading a single, specific midi track.
+## USAGE
+
+THE library allows not only reading all tracks in a midi file at once, but also reading only the header (e.g. to a find out the track count) and then reading a single, specific midi track.
 
 Reading all tracks in a midi file:
 
 ```lua
 local midi = require "midi"
 
-local file = assert(io.open("short-tune.mid"))
+local file = love.filesystem.newFile("short-tune.mid")
+file:open("r")
 midi.process(file, print)
 
 file:close()
@@ -22,10 +25,11 @@ Reading only the last track in a midi file:
 ```lua
 local midi = require "midi"
 
-local file = assert(io.open("short-tune.mid"))
+local file = love.filesystem.newFile("short-tune.mid")
+file:open("r")
 local tracks = midi.processHeader(file) -- find number of tracks
 
-file:seek("set") -- seek back to the beginning of the file
+file:seek(0) -- seek back to the beginning of the file
 midi.processTrack(file, print, tracks)
 
 file:close()

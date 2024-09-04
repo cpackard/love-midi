@@ -34,7 +34,8 @@ local function callback(name, ...)
   end
 end
 
-local file = assert(io.open("resources/short-tune.mid", "rb"))
+local file = love.filesystem.newFile("short-tune.mid")
+file:open("r")
 midi.process(file, callback)
 
 -- The double pauses in the output below are a result of ignoring "noteOff" events.

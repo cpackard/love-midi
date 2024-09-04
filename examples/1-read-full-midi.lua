@@ -1,9 +1,10 @@
 -- Load the library.
 local midi = require "midi"
 
--- Get a stream e.g. by opening a file with io.open().
--- Make sure to open in binary mode "rb".
-local file = assert(io.open("resources/short-tune.mid", "rb"))
+-- Get a stream e.g. by opening a file.
+-- Love will automatically read the file in binary mode.
+local file = love.filesystem.newFile("short-tune.mid")
+file:open("r")
 
 -- Call midi.process() with a callback function.
 -- The callback is invoked for each midi event (see output below).

@@ -1,3 +1,6 @@
+---Used for LuaJIT bitwise operations
+local bit = require("bit")
+
 ---Reads exactly count bytes from the given stream, raising an error if it can't.
 ---@param stream file* The stream to read from.
 ---@param count integer The count of bytes to read.
@@ -19,8 +22,8 @@ local function readVLQ(stream)
   local length = 0
   repeat
     local byte = assert(stream:read(1), "incomplete or missing variable length quantity"):byte()
-    value = value << 7
-    value = value | byte & 0x7F
+    value = bit.lshift(value, 7)
+    value = bit.bor(value, bit.band(byte, 0x7F))
     length = length + 1
   until byte < 0x80
   return value, length
@@ -28,22 +31,22 @@ end
 
 local midiEvent = {
   [0x80] = function(stream, callback, channel, fb)
-    local key, velocity = ("I1I1"):unpack(fb .. stream:read(1))
+    local key, velocity = love.data.unpack("I1I1", fb .. stream:read(1))
     callback("noteOff", channel, key, velocity / 0x7F)
     return 2
   end,
   [0x90] = function(stream, callback, channel, fb)
-    local key, velocity = ("I1I1"):unpack(fb .. stream:read(1))
+    local key, velocity = love.data.unpack("I1I1", fb .. stream:read(1))
     callback("noteOn", channel, key, velocity / 0x7F)
     return 2
   end,
   [0xA0] = function(stream, callback, channel, fb)
-    local key, pressure = ("I1I1"):unpack(fb .. stream:read(1))
+    local key, pressure = love.data.unpack("I1I1", fb .. stream:read(1))
     callback("keyPressure", channel, key, pressure / 0x7F)
     return 2
   end,
   [0xB0] = function(stream, callback, channel, fb)
-    local number, value = ("I1I1"):unpack(fb .. stream:read(1))
+    local number, value = love.data.unpack("I1I1", fb .. stream:read(1))
     if number < 120 then
       callback("controller", channel, number, value)
     else
@@ -62,8 +65,9 @@ local midiEvent = {
     return 1
   end,
   [0xE0] = function(stream, callback, channel, fb)
-    local lsb, msb = ("I1I1"):unpack(fb .. stream:read(1))
-    callback("pitch", channel, (lsb | msb << 7) / 0x2000 - 1)
+    local lsb, msb = love.data.unpack("I1I1", fb .. stream:read(1))
+    local value = bit.lshift(msb, 7)
+    callback("pitch", channel, bit.bor(lsb, value) / 0x2000 - 1)
     return 2
   end
 }
@@ -105,16 +109,16 @@ local metaEvents = {
   [0x20] = makeForwarder("channelPrefix"),
   [0x2F] = makeForwarder("endOfTrack"),
   [0x51] = function(data, callback)
-    local rawTempo = (">I3"):unpack(data)
+    local rawTempo = love.data.unpack(">I3", data)
     callback("setTempo", 6e7 / rawTempo)
   end,
   [0x54] = makeForwarder("smpteOffset"),
   [0x58] = function(data, callback)
-    local numerator, denominator, metronome, dotted = (">I1I1I1I1"):unpack(data)
-    callback("timeSignature", numerator, 1 << denominator, metronome, dotted)
+    local numerator, denominator, metronome, dotted = love.data.unpack(">I1I1I1I1", data)
+    callback("timeSignature", numerator, bit.lshift(1, denominator), metronome, dotted)
   end,
   [0x59] = function(data, callback)
-    local count, minor = (">I1I1"):unpack(data)
+    local count, minor = love.data.unpack(">I1I1", data)
     callback("keySignature", math.abs(count), count < 0 and "flat" or count > 0 and "sharp" or "C", minor == 0 and "major" or "minor")
   end,
   [0x7F] = makeForwarder("sequenceEvent")
@@ -141,12 +145,15 @@ end
 ---@return string type The four magic bytes the chunk type (usually `MThd` or `MTrk`).
 ---@return integer length The length of the chunk in bytes.
 local function readChunkInfo(stream)
+  if stream:isEOF() then
+    return false
+  end
   local chunkInfo = stream:read(8)
   if not chunkInfo then
     return false
   end
   assert(#chunkInfo == 8, "incomplete chunk info")
-  return (">c4I4"):unpack(chunkInfo)
+  return love.data.unpack(">c4I4", chunkInfo)
 end
 
 ---Reads the content in a header chunk of a midi file.
@@ -158,7 +165,7 @@ end
 local function readHeader(stream, callback, chunkLength)
   local header = read(stream, chunkLength)
   assert(header and #header == 6, "incomplete or missing header")
-  local format, tracks, division = (">I2I2I2"):unpack(header)
+  local format, tracks, division = love.data.unpack(">I2I2I2", header)
   callback("header", format, tracks, division)
   return format, tracks
 end
@@ -184,7 +191,7 @@ local function processEvent(stream, callback, runningStatus)
 
 
   if status >= 0x80 and status < 0xF0 then
-    length = length + midiEvent[status & 0xF0](stream, callback, (status & 0x0F) + 1, firstByte)
+    length = length + midiEvent[bit.band(status, 0xF0)](stream, callback, bit.band(status, 0xF0) + 1, firstByte)
   elseif status == 0xF0 then
     length = length + sysexEvent(stream, callback, firstByte)
   elseif status == 0xF2 then
@@ -261,10 +268,10 @@ local function process(stream, callback, onlyHeader, onlyTrack)
           break
         end
       else
-        stream:seek("cur", chunkLength)
+        stream:seek(stream:tell() + chunkLength)
       end
     else
-      local data = read(chunkLength)
+      local data = read(stream, chunkLength)
       callback("unknownChunk", chunkType, data)
     end
   end
